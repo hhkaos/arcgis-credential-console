@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customer App</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/calcite-components/5.1.2/main.css" />
+    <script type="module" src="https://js.arcgis.com/calcite-components/5.1.2/index.js"></script>
+    <script type="importmap">
+      { "imports": { "@esri/arcgis-rest-request": "https://cdn.jsdelivr.net/npm/@esri/arcgis-rest-request@4.11.0/+esm" } }
+    </script>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      body { background: var(--calcite-color-background); color: var(--calcite-color-text-1); font-family: var(--calcite-font-family);
+             display: grid; place-items: center; padding: 16px; box-sizing: border-box; text-align: center; }
+      .muted { color: var(--calcite-color-text-3); font-size: 0.875rem; }
+      calcite-notice { margin: 16px auto; max-width: 28rem; text-align: start; }
+    </style>
+  </head>
+  <body class="calcite-mode-auto">
+    <main>
+      <h1>Customer app</h1>
+      <p class="muted">Stands in for the app that receives the API key. Checks the key every 3 s.</p>
+      <calcite-notice id="status" open kind="info" icon="information">
+        <div slot="title">Waiting for an API key…</div>
+        <div slot="message">Open me from the manager with “Open viewer”.</div>
+      </calcite-notice>
+      <p class="muted" id="last-check"></p>
+    </main>
+
+    <script type="module">
+      import { request, ApiKeyManager } from "@esri/arcgis-rest-request";
+
+      const MOCK = new URLSearchParams(location.search).has("mock");
+      const STORAGE = "viewer-api-key"; // sessionStorage: this tab only, gone when it closes
+      const status = document.querySelector("#status");
+      let key = read();
+
+      // The manager sends the key via postMessage after receiving "viewer-ready"
+      window.addEventListener("message", (e) => {
+        if (e.origin !== location.origin || e.data?.type !== "api-key") return;
+        key = e.data.token;
+        try { sessionStorage.setItem(STORAGE, key); } catch {}
+        check();
+      });
+      window.opener?.postMessage({ type: "viewer-ready" }, location.origin);
+
+      check();
+      setInterval(check, 3000);
+
+      async function check() {
+        if (!key) return;
+        try {
+          await (MOCK ? mockCheck() : request("https://www.arcgis.com/sharing/rest/portals/self", {
+            authentication: ApiKeyManager.fromKey(key),
+          }));
+          show("success", "check-circle", "Key is valid", `Access granted with …${key.slice(-6)}`);
+        } catch (error) {
+          show("danger", "x-octagon", "Access denied", error.message);
+        }
+        document.querySelector("#last-check").textContent = `Last check: ${new Date().toLocaleTimeString("en-GB")}`;
+      }
+
+      function show(kind, icon, title, message) {
+        Object.assign(status, { kind, icon });
+        status.querySelector("[slot=title]").textContent = title;
+        status.querySelector("[slot=message]").textContent = message;
+      }
+
+      function read() {
+        try { return sessionStorage.getItem(STORAGE); } catch { return null; }
+      }
+
+      // In mock mode the "API" is the list of valid tokens kept by src/mock.js
+      async function mockCheck() {
+        let valid = {};
+        try { valid = JSON.parse(localStorage.getItem("mock-valid-tokens")) ?? {}; } catch {}
+        if (!Object.values(valid).includes(key)) throw new Error("498: Invalid token (mock)");
+      }
+    </script>
+  </body>
+</html>

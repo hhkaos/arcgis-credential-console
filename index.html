@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Credential Console</title>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/calcite-components/5.1.2/main.css" />
+    <script type="module" src="https://js.arcgis.com/calcite-components/5.1.2/index.js"></script>
+
+    <!-- REST JS from a CDN. developer-credentials 4.11.0 imports request@4.10.3: remap it to 4.11.0
+         so there is a single copy of ArcGISIdentityManager on the page. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@esri/arcgis-rest-request": "https://cdn.jsdelivr.net/npm/@esri/arcgis-rest-request@4.11.0/+esm",
+          "@esri/arcgis-rest-portal": "https://cdn.jsdelivr.net/npm/@esri/arcgis-rest-portal@4.11.0/+esm",
+          "@esri/arcgis-rest-developer-credentials": "https://cdn.jsdelivr.net/npm/@esri/arcgis-rest-developer-credentials@4.11.0/+esm",
+          "https://cdn.jsdelivr.net/npm/@esri/arcgis-rest-request@4.10.3/+esm": "https://cdn.jsdelivr.net/npm/@esri/arcgis-rest-request@4.11.0/+esm"
+        }
+      }
+    </script>
+    <script type="module" src="./src/main.js"></script>
+
+    <style>
+      [hidden] { display: none !important; }
+      html, body { margin: 0; height: 100%; overflow: hidden; }
+      body { background: var(--calcite-color-background); color: var(--calcite-color-text-1); font-family: var(--calcite-font-family); }
+      #login { display: grid; place-items: center; height: 100%; text-align: center; padding: 16px; }
+      #login p { color: var(--calcite-color-text-2); max-width: 32rem; margin-inline: auto; }
+      .login-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 8px 0 12px; }
+      .content { padding: 16px 24px; overflow: auto; height: 100%; box-sizing: border-box; }
+      .summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+      .tile { display: inline-flex; align-items: center; gap: 8px; background: var(--calcite-color-foreground-1); border: 1px solid var(--calcite-color-border-3); border-radius: 6px; padding: 8px 14px;
+        font: inherit; color: inherit; text-align: left; cursor: pointer; }
+      .tile:hover { border-color: var(--calcite-color-border-1); }
+      .tile:focus-visible { outline: 2px solid var(--calcite-color-brand); outline-offset: 2px; }
+      .tile[aria-pressed="true"] { border-color: var(--calcite-color-brand); box-shadow: inset 0 0 0 1px var(--calcite-color-brand); background: var(--calcite-color-foreground-2); }
+      .tile calcite-icon { color: var(--calcite-color-text-3); }
+      .tile b { font-size: 1.25rem; line-height: 1; }
+      .tile span { color: var(--calcite-color-text-2); font-size: 0.875rem; white-space: nowrap; }
+      .tile.warning b, .tile.warning calcite-icon { color: var(--calcite-color-status-warning); }
+      .tile.danger b, .tile.danger calcite-icon { color: var(--calcite-color-status-danger); }
+      #search-box { flex: 1 1 320px; max-width: 560px; margin-left: auto; }
+      #search { display: block; }
+      /* Softer field borders than Calcite's default input border */
+      calcite-combobox { --calcite-combobox-input-border-color: var(--calcite-color-border-2); }
+      calcite-input-text, calcite-input-number, calcite-text-area, calcite-select {
+        --calcite-input-text-border-color: var(--calcite-color-border-2); --calcite-input-number-border-color: var(--calcite-color-border-2);
+        --calcite-text-area-border-color: var(--calcite-color-border-2); --calcite-select-border-color: var(--calcite-color-border-2); }
+      .tag-hints { display: grid; gap: 6px; margin-top: 6px; }
+      .tag-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.75rem; padding: 6px 8px; border-radius: 4px;
+        background: color-mix(in srgb, var(--calcite-color-status-warning) 10%, transparent); }
+      .tag-hint calcite-icon { color: var(--calcite-color-status-warning); }
+      .tag-hint span { flex: 1 1 12rem; }
+      .rename { display: grid; gap: 4px; padding: 8px 12px; flex: 1; }
+      mark { background: color-mix(in srgb, var(--calcite-color-status-warning) 30%, transparent); color: inherit; border-radius: 2px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+      .toolbar h2 { margin: 0; font-size: 1.125rem; }
+      .muted { color: var(--calcite-color-text-3); font-size: 0.75rem; }
+      .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; border: 1px solid currentColor; margin: 1px 2px 1px 0; }
+      .badge.ok { color: var(--calcite-color-status-success); }
+      .badge.info { color: var(--calcite-color-status-info); }
+      .badge.warning { color: var(--calcite-color-status-warning); }
+      .badge.danger { color: var(--calcite-color-status-danger); }
+      .badge.neutral { color: var(--calcite-color-text-2); }
+      .findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+      .slot { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 6px 0; }
+      .token-lead { margin: 0 0 16px; }
+      .token-field { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--calcite-color-border-2); border-radius: 6px; background: var(--calcite-color-foreground-2); }
+      .token-field code { flex: 1; font-size: 0.875rem; line-height: 1.5; word-break: break-all; user-select: all; }
+      .token-field code.hidden { filter: blur(5px); user-select: none; }
+      .token-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+      .token-note { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; font-size: 0.8125rem; color: var(--calcite-color-text-2); }
+      .token-note calcite-icon { color: var(--calcite-color-status-warning); }
+      calcite-dialog calcite-label { margin-bottom: 12px; }
+      /* Project edit action: only on hover or keyboard focus (always on touch screens, which have no hover) */
+      @media (hover: hover) {
+        #projects calcite-action[data-edit-project] { opacity: 0; transition: opacity 120ms; }
+        #projects calcite-list-item:hover calcite-action[data-edit-project],
+        #projects calcite-list-item:focus-within calcite-action[data-edit-project] { opacity: 1; }
+      }
+      #user-menu { --calcite-dropdown-width: 20rem; }
+      .logo { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
+      .logo-preview { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; display: block; margin-top: 8px; }
+      .badge.tier-open { color: var(--calcite-color-status-success); }
+      .badge.tier-premium { color: var(--calcite-color-status-info); }
+      .badge.tier-restricted { color: var(--calcite-color-status-danger); }
+      .tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+      .tag { --fam: var(--calcite-color-text-2); display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; white-space: nowrap; cursor: default;
+        color: var(--fam); background: color-mix(in srgb, var(--fam) 12%, transparent); border: 1px solid color-mix(in srgb, var(--fam) 35%, transparent); }
+      calcite-table-cell .tags { margin: 4px 0 0 22px; }
+      .cred-title { display: flex; gap: 6px; align-items: flex-start; }
+      /* Icon box is one line tall, so it centers on the first line of a wrapped title */
+      .cred-title calcite-icon { flex: none; height: 1lh; display: flex; align-items: center; color: var(--calcite-color-text-3); }
+      .stack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .tag.more { --fam: var(--calcite-color-text-3); }
+      .fam-0 { --fam: #1f6fbf; } /* env */
+      .fam-1 { --fam: #8a5a00; } /* status */
+      .fam-2 { --fam: #0f7a5c; } /* customer */
+      .fam-3 { --fam: #7b3fbf; } /* team */
+      .fam-4 { --fam: #b0306a; } /* review */
+      .fam-5 { --fam: #4f6b8a; }
+      .fam-6 { --fam: #6b6b3a; }
+      @media (prefers-color-scheme: dark) {
+        .fam-0 { --fam: #7fb6f0; } .fam-1 { --fam: #e0b45c; } .fam-2 { --fam: #5ccfa8; } .fam-3 { --fam: #c19bf0; }
+        .fam-4 { --fam: #f08ab8; } .fam-5 { --fam: #a3bbd6; } .fam-6 { --fam: #c9c98a; }
+      }
+      /* detail view */
+      #detail-view > calcite-button { margin-left: -12px; }
+      .detail-head { display: grid; gap: 10px; margin: 8px 0 20px; }
+      .title-row { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+      .title-row .head-links { margin-left: auto; display: flex; gap: 8px; flex: none; }
+      .title-row > calcite-icon { color: var(--calcite-color-text-3); flex: none; }
+      .title-row h2 { margin: 0; font-size: 1.5rem; font-weight: 600; line-height: 1.25; }
+      .reveal { opacity: 0; transition: opacity 120ms; }
+      .title-row:hover .reveal, .reveal:focus-within, .reveal:focus { opacity: 1; }
+      .rename { flex: 1; display: grid; gap: 4px; max-width: 640px; }
+      .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 24px; font-size: 0.875rem; color: var(--calcite-color-text-2); }
+      .meta span { display: inline-flex; align-items: center; gap: 6px; }
+      .meta calcite-icon { color: var(--calcite-color-text-3); }
+      .detail-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 32px; }
+      .detail-tags .tags { gap: 6px; }
+      .detail-tags .tag { font-size: 0.8125rem; padding: 2px 10px; }
+      .detail-tags.editing { align-items: flex-start; }
+      .detail-tags.editing #detail-tags-box { flex: 1 1 400px; }
+      .row-link { color: inherit; text-decoration: none; }
+      .row-link:hover b, .row-link:focus-visible b { text-decoration: underline; }
+      calcite-table-row[data-id] { cursor: pointer; }
+      .detail-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 16px; align-items: start; }
+      @media (max-width: 1100px) { .detail-grid { grid-template-columns: minmax(0, 1fr); } }
+      .col { display: grid; gap: 16px; }
+      .card { background: var(--calcite-color-foreground-1); border: 1px solid var(--calcite-color-border-3); border-radius: 6px; padding: 12px 16px 16px; }
+      .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; margin-bottom: 8px; }
+      .card-head h3 { margin: 0; font-size: 0.9375rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+      .card-head h3 calcite-icon { color: var(--calcite-color-text-3); }
+      .rows { display: grid; gap: 8px; }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chips .badge { margin: 0; }
+      .checks { display: grid; gap: 4px; }
+      .checks calcite-label { margin: 0; --calcite-label-margin-bottom: 0; }
+      .editor { display: grid; gap: 6px; }
+      .edit-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+      .edit-foot > span { flex: 1 1 12rem; display: inline-flex; align-items: center; gap: 4px; }
+      .diff { list-style: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 4px; background: var(--calcite-color-foreground-2); font-family: monospace; font-size: 0.8125rem; display: grid; gap: 2px; }
+      .diff .add { color: var(--calcite-color-status-success); }
+      .diff .remove { color: var(--calcite-color-status-danger); }
+      #access-confirm-body p, #slot-dialog-body p { margin: 0 0 12px; }
+      .keyslots { display: grid; }
+      .summary-line { margin: -4px 0 0 34px; color: var(--calcite-color-text-2); font-size: 1rem; }
+      .summary-add { margin: -4px 0 0 34px; font-size: 0.875rem; justify-self: start; }
+      .row-summary { display: block; margin-left: 22px; font-size: 0.8125rem; color: var(--calcite-color-text-2);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+      .rename calcite-input-text + calcite-input-text { margin-top: 4px; }
+      .owner-rows { display: grid; gap: 8px; }
+      .owner-row { display: grid; grid-template-columns: 16px 88px minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 0.875rem; overflow-wrap: anywhere; }
+      .owner-row calcite-icon { color: var(--calcite-color-text-3); align-self: center; }
+      .owner-form { display: grid; gap: 4px; }
+      .owner-form calcite-label { --calcite-label-margin-bottom: 8px; }
+      .inherited p, .notes { margin: 4px 0 0; font-size: 0.875rem; overflow-wrap: anywhere; }
+      .inherited + .inherited { margin-top: 12px; }
+      .privacy-note { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; padding: 8px 10px; border-radius: 4px;
+        background: var(--calcite-color-foreground-2); font-size: 0.8125rem; color: var(--calcite-color-text-2); }
+      calcite-dialog .privacy-note { margin: 0 0 16px; }
+      .privacy-note calcite-icon { flex: none; margin-top: 2px; color: var(--calcite-color-text-3); }
+      .keyslot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 12px 0; }
+      @media (max-width: 1300px) { .keyslot { grid-template-columns: minmax(0, 1fr); } }
+      .keyslot + .keyslot { border-top: 1px solid var(--calcite-color-border-3); }
+      .keyslot:first-child { padding-top: 0; }
+      .keyslot:last-child { padding-bottom: 0; }
+      .keyslot-info { display: grid; gap: 4px; }
+      .keyslot-head { display: flex; align-items: center; gap: 8px; }
+      .keyslot-actions { display: flex; gap: 8px; }
+      .partial { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 0.875rem; }
+      .partial calcite-link { white-space: nowrap; }
+      .groups { display: grid; gap: 12px; }
+      .group h4 { margin: 0 0 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--calcite-color-text-3); display: flex; align-items: center; gap: 6px; }
+      .group h4 .badge { text-transform: none; letter-spacing: 0; }
+      .plist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+      .plist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+      .plist code { font-size: 0.75rem; }
+    </style>
+  </head>
+  <body class="calcite-mode-auto">
+    <div id="login" hidden>
+      <div>
+        <h1>Credential Console</h1>
+        <p>Audit, rotate and revoke the API keys and OAuth apps of your ArcGIS Location Platform account with ArcGIS REST JS.</p>
+        <div class="login-actions">
+          <calcite-button id="sign-in" icon-start="sign-in" scale="l">Sign in with ArcGIS</calcite-button>
+          <calcite-button href="?mock" appearance="outline" icon-start="beaker" scale="l">Try it with demo data</calcite-button>
+        </div>
+        <p class="muted">Demo data is fictional and stays in your browser. No account needed.</p>
+      </div>
+    </div>
+
+    <calcite-shell id="app" hidden>
+      <calcite-navigation slot="header">
+        <calcite-navigation-logo slot="logo" icon="key" heading="Credential Console" description="for ArcGIS Location Platform · built with ArcGIS REST JS"></calcite-navigation-logo>
+        <calcite-chip slot="content-end" id="mock-chip" icon="beaker" hidden>Mock mode</calcite-chip>
+        <calcite-dropdown slot="user" id="user-menu" placement="bottom-end" overlay-positioning="fixed">
+          <calcite-navigation-user slot="trigger" id="nav-user"></calcite-navigation-user>
+          <calcite-dropdown-group selection-mode="none">
+            <calcite-dropdown-item id="menu-portal" icon-start="launch" target="_blank">My portal</calcite-dropdown-item>
+            <calcite-dropdown-item id="menu-dashboard" icon-start="graph-bar" target="_blank">ArcGIS Location Platform dashboard</calcite-dropdown-item>
+            <calcite-dropdown-item id="menu-settings" icon-start="gear" target="_blank">Account settings</calcite-dropdown-item>
+          </calcite-dropdown-group>
+          <calcite-dropdown-group selection-mode="none">
+            <calcite-dropdown-item id="sign-out" icon-start="sign-out">Sign out</calcite-dropdown-item>
+          </calcite-dropdown-group>
+        </calcite-dropdown>
+      </calcite-navigation>
+
+      <calcite-shell-panel slot="panel-start">
+        <calcite-panel heading="Projects" description="Groups tagged “project”">
+          <calcite-list id="projects" label="Projects" selection-mode="single" selection-appearance="highlight"></calcite-list>
+          <calcite-button slot="footer" id="new-project" icon-start="plus" appearance="outline" width="full">New project</calcite-button>
+        </calcite-panel>
+      </calcite-shell-panel>
+
+      <div class="content">
+        <div id="list-view">
+        <section id="summary" class="summary"></section>
+        <div class="toolbar">
+          <h2 id="list-title">All credentials</h2>
+          <div id="search-box"></div>
+          <calcite-button id="reload" icon-start="refresh" appearance="outline">Reload</calcite-button>
+          <calcite-button id="new-key" icon-start="key">New API key</calcite-button>
+        </div>
+        <calcite-table id="table" caption="Credentials" striped selection-mode="multiple" selection-display="top"></calcite-table>
+        </div>
+        <div id="detail-view" hidden></div>
+      </div>
+    </calcite-shell>
+
+    <calcite-dialog id="key-dialog" heading="New API key" modal width="s">
+      <calcite-label>Title<calcite-input-text id="key-title" placeholder="Viewer · Customer X"></calcite-input-text></calcite-label>
+      <calcite-label>Project<calcite-select id="key-project"></calcite-select></calcite-label>
+      <calcite-label>Tags<div id="key-tags-box" class="tag-picker"></div></calcite-label>
+      <calcite-label>Privileges<calcite-combobox id="key-privileges" selection-mode="multiple" placeholder="Choose privileges"></calcite-combobox></calcite-label>
+      <calcite-label>Item access<calcite-combobox id="key-items" selection-mode="multiple" placeholder="Items this key can read"></calcite-combobox></calcite-label>
+      <calcite-label>Allowed referrers (one per line)<calcite-text-area id="key-referrers" placeholder="https://my-app.example.com/*"></calcite-text-area></calcite-label>
+      <calcite-label>Token validity (days)<calcite-input-number id="key-days" min="1" max="365"></calcite-input-number></calcite-label>
+      <calcite-button slot="footer-end" appearance="outline" data-close>Cancel</calcite-button>
+      <calcite-button slot="footer-end" id="key-create" icon-start="key">Create</calcite-button>
+    </calcite-dialog>
+
+    <calcite-dialog id="project-dialog" heading="New project" modal width="s">
+      <calcite-label>Name<calcite-input-text id="project-title" placeholder="Customer / project"></calcite-input-text></calcite-label>
+      <calcite-button slot="footer-end" appearance="outline" data-close>Cancel</calcite-button>
+      <calcite-button slot="footer-end" id="project-create" icon-start="plus">Create</calcite-button>
+    </calcite-dialog>
+
+    <calcite-dialog id="slot-dialog" heading="Generate API key" modal width="s">
+      <div id="slot-dialog-body"></div>
+      <calcite-label>Valid for (days)<calcite-input-number id="slot-days" min="1" max="365"></calcite-input-number></calcite-label>
+      <calcite-button slot="footer-end" appearance="outline" data-close>Cancel</calcite-button>
+      <calcite-button slot="footer-end" id="slot-confirm" icon-start="key">Generate</calcite-button>
+    </calcite-dialog>
+
+    <calcite-dialog id="token-dialog" heading="New API key" modal width="m">
+      <p id="token-info" class="token-lead"></p>
+      <div class="token-field">
+        <code id="token-value"></code>
+        <div class="token-actions">
+          <calcite-action id="token-toggle" icon="view-hide" text="Hide" scale="s"></calcite-action>
+          <calcite-button id="token-copy" icon-start="copy" scale="s">Copy</calcite-button>
+        </div>
+      </div>
+      <p class="token-note">
+        <calcite-icon icon="exclamation-mark-triangle" scale="s" aria-hidden="true"></calcite-icon>
+        Copy it now: ArcGIS never shows this API key again.
+      </p>
+      <calcite-button slot="footer-start" appearance="transparent" icon-start="launch" id="token-viewer">Test in viewer</calcite-button>
+      <calcite-button slot="footer-end" data-close>Done</calcite-button>
+    </calcite-dialog>
+
+    <calcite-dialog id="access-confirm" heading="Save access?" modal width="s">
+      <div id="access-confirm-body"></div>
+      <calcite-label>New token valid for (days)<calcite-input-number id="access-confirm-days" min="1" max="365"></calcite-input-number></calcite-label>
+      <calcite-button slot="footer-end" appearance="outline" data-close>Cancel</calcite-button>
+      <calcite-button slot="footer-end" kind="danger" id="access-confirm-save" icon-start="key">Revoke and generate token</calcite-button>
+    </calcite-dialog>
+
+    <calcite-dialog id="project-edit-dialog" heading="Edit project" modal width="s">
+      <calcite-label>Name<calcite-input-text id="project-edit-title"></calcite-input-text></calcite-label>
+      <calcite-label>Summary<calcite-input-text id="project-edit-snippet" placeholder="Customer · type of project"></calcite-input-text></calcite-label>
+      <calcite-label>Contacts and notes
+        <calcite-text-area id="project-edit-notes" rows="4" placeholder="Customer contact, account manager, contract dates, CRM link… Credentials without their own owner show this."></calcite-text-area>
+      </calcite-label>
+      <p class="privacy-note"><calcite-icon icon="lock" scale="s" aria-hidden="true"></calcite-icon>
+        <span>Stored on the group: visible to every member of this group and to your organization's administrators. Don't store secrets, and keep personal data to what you need (prefer team aliases).</span></p>
+      <calcite-label>Logo (PNG or JPG)
+        <input type="file" id="project-edit-logo" accept="image/png,image/jpeg" />
+        <img id="project-edit-preview" class="logo-preview" alt="" hidden />
+      </calcite-label>
+      <calcite-link id="project-edit-portal" target="_blank" icon-end="launch">Open group in portal</calcite-link>
+      <calcite-button slot="footer-start" kind="danger" appearance="outline" icon-start="trash" id="project-edit-delete">Delete project</calcite-button>
+      <calcite-button slot="footer-end" appearance="outline" data-close>Cancel</calcite-button>
+      <calcite-button slot="footer-end" id="project-edit-save" icon-start="save">Save</calcite-button>
+    </calcite-dialog>
+
+    <calcite-dialog id="batch-dialog" heading="Batch" modal width="s">
+      <div id="batch-body"></div>
+      <calcite-button slot="footer-end" appearance="outline" data-close>Cancel</calcite-button>
+      <calcite-button slot="footer-end" id="batch-confirm">Apply</calcite-button>
+    </calcite-dialog>
+
+    <calcite-alert id="alert" auto-close placement="bottom" label="Notification">
+      <div slot="title"></div>
+      <div slot="message"></div>
+    </calcite-alert>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Signing in…</title>
+    <script type="importmap">
+      { "imports": { "@esri/arcgis-rest-request": "https://cdn.jsdelivr.net/npm/@esri/arcgis-rest-request@4.11.0/+esm" } }
+    </script>
+  </head>
+  <body>
+    <p>Signing in…</p>
+    <script type="module">
+      import { ArcGISIdentityManager } from "@esri/arcgis-rest-request";
+      import config from "./config.js";
+
+      // Same parameters as beginOAuth2 in src/api.js
+      ArcGISIdentityManager.completeOAuth2({
+        clientId: config.clientId,
+        redirectUri: config.redirectUri,
+        portal: config.portal,
+        popup: true,
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+# Secrets (demo account for npm run seed)
+.env
+
+# Dependencies
+node_modules/
+
+# Local tooling
+.mcp.json
+.vscode/
+.claude/
+.playwright-mcp/
+.idea/
+
+# OS and logs
+.DS_Store
+*.log
