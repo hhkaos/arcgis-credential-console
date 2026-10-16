@@ -136,6 +136,7 @@
       .card-head h3 { margin: 0; font-size: 0.9375rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
       .card-head h3 calcite-icon { color: var(--calcite-color-text-3); }
       .rows { display: grid; gap: 8px; }
+      .redirect-uris code, #redirect-confirm-body .diff { overflow-wrap: anywhere; }
       .chips { display: flex; flex-wrap: wrap; gap: 6px; }
       .chips .badge { margin: 0; }
       .checks { display: grid; gap: 4px; }
@@ -146,7 +147,7 @@
       .diff { list-style: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 4px; background: var(--calcite-color-foreground-2); font-family: monospace; font-size: 0.8125rem; display: grid; gap: 2px; }
       .diff .add { color: var(--calcite-color-status-success); }
       .diff .remove { color: var(--calcite-color-status-danger); }
-      #access-confirm-body p, #slot-dialog-body p { margin: 0 0 12px; }
+      #access-confirm-body p, #slot-dialog-body p, #redirect-confirm-body p { margin: 0 0 12px; }
       .keyslots { display: grid; }
       .summary-line { margin: -4px 0 0 34px; color: var(--calcite-color-text-2); font-size: 1rem; }
       .summary-add { margin: -4px 0 0 34px; font-size: 0.875rem; justify-self: start; }
@@ -274,6 +275,12 @@
       </p>
       <calcite-button slot="footer-start" appearance="transparent" icon-start="launch" id="token-viewer">Test in viewer</calcite-button>
       <calcite-button slot="footer-end" data-close>Done</calcite-button>
+    </calcite-dialog>
+
+    <calcite-dialog id="redirect-confirm" heading="Save redirect URIs?" modal width="s">
+      <div id="redirect-confirm-body"></div>
+      <calcite-button slot="footer-end" appearance="outline" data-close>Cancel</calcite-button>
+      <calcite-button slot="footer-end" id="redirect-confirm-save">Save redirect URIs</calcite-button>
     </calcite-dialog>
 
     <calcite-dialog id="access-confirm" heading="Save access?" modal width="s">

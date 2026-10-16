@@ -168,6 +168,14 @@ export async function updateCredentialItem(itemId, fields) {
   Object.assign(creds.find((c) => c.itemId === itemId).item, fields);
 }
 
+export async function updateRedirectUris(itemId, redirect_uris) {
+  await wait();
+  const c = creds.find((c) => c.itemId === itemId);
+  c.redirect_uris = [...redirect_uris];
+  c.modified = new Date();
+  return structuredClone(c);
+}
+
 export async function deleteCredential(itemId) {
   await wait();
   creds.splice(creds.findIndex((c) => c.itemId === itemId), 1);

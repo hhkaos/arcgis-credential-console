@@ -25,7 +25,8 @@ const state = {
   keptTags: new Set(), // new-family tags the user chose to keep (no more warnings)
   renaming: false, // title of the selected credential is being edited
   editingTags: false, // tags of the selected credential are being edited
-  editing: null, // access section being edited in the detail view: "items" | "privileges" | "referrers"
+  editing: null, // detail section being edited: access, redirect-uris, owner or notes
+  pendingRedirects: null, // { itemId, redirect_uris } waiting for confirmation
   pendingAccess: null, // access waiting for confirmation
   pendingSlot: null, // { itemId, slot } waiting for confirmation in the generate/regenerate dialog
   revealed: new Set(), // `${itemId}/${slot}` whose partial key is visible
@@ -215,9 +216,11 @@ const expiringSlots = (c) => c.kind === "apiKey"
   ? tokenSlots(c, state.expirations).filter((t) => t.expires && daysLeft(t.expires) <= config.expiringSoonDays)
   : [];
 
-// Everything the search box matches against: title, tags (raw and readable), projects, referrers
+// Everything the search box matches against (partial, case-insensitive): title, Client ID, summary, owner,
+// tags (raw and readable), projects, referrers and redirect URIs
 const searchText = (c) => [
   c.item.title,
+  c.client_id ?? "",
   c.item.snippet ?? "",
   ownerOf(c).owner ?? "",
   ...tagsOf(c).flatMap((t) => [t, tagLabel(t)]),
@@ -393,7 +396,7 @@ function renderTags() {
   // Calcite's combobox does not index items added after it renders, so the whole element is rebuilt
   $("#search-box").innerHTML = `
     <calcite-combobox id="search" label="Search credentials" selection-mode="multiple" allow-custom-values placeholder-icon="search"
-      placeholder="Search name, project, referrer… or type a tag family like env:">${groups.join("")}</calcite-combobox>`;
+      placeholder="Search name, Client ID, project… or type a tag family like env:">${groups.join("")}</calcite-combobox>`;
   state.query = "";
 }
 
@@ -862,9 +865,75 @@ function accessEditor(c, key) {
 }
 
 function oauthCards(c) {
+  const editing = state.editing === "redirect-uris";
+  const uris = c.redirect_uris ?? [];
+  const action = state.editing ? "" : `<calcite-button appearance="transparent" scale="s" icon-start="pencil" data-edit-section="redirect-uris">Edit</calcite-button>`;
+  const body = editing
+    ? `<div class="editor">
+        <calcite-text-area id="edit-redirect-uris" rows="4" label="Redirect URIs" placeholder="https://my-app.example.com/callback">${esc(uris.join("\n"))}</calcite-text-area>
+        <span class="muted">One absolute URI per line, including custom app schemes. Empty = no redirect URIs.</span>
+        <span id="redirect-uris-error" role="alert" hidden></span>
+      </div>
+      <div class="edit-foot">
+        <span class="muted"><calcite-icon icon="information" scale="s" aria-hidden="true"></calcite-icon> Removing a URI prevents future sign-ins using it.</span>
+        <calcite-button appearance="outline" scale="s" data-cancel-edit>Cancel</calcite-button>
+        <calcite-button scale="s" data-save-redirects>Save…</calcite-button>
+      </div>`
+    : uris.length
+      ? `<div class="rows redirect-uris">${uris.map((u) => `<code>${esc(u)}</code>`).join("")}</div>`
+      : `<span class="muted">No redirect URIs registered</span>`;
   return card("key", "Client ID", `<code>${esc(c.client_id)}</code>`)
-    + card("link", "Redirect URIs", `<div class="rows">${c.redirect_uris.map((u) => `<code>${esc(u)}</code>`).join("")}</div>`);
+    + card("link", "Redirect URIs", body, action);
 }
+
+function saveRedirectUris() {
+  const c = byId(state.selectedId);
+  const field = $("#edit-redirect-uris");
+  const uris = [...new Set(splitList(field.value, "\n"))];
+  const invalid = uris.find((uri) => {
+    try { new URL(uri); return /\s/.test(uri); } catch { return true; }
+  });
+  field.status = invalid ? "invalid" : "idle";
+  const error = $("#redirect-uris-error");
+  error.hidden = !invalid;
+  if (invalid) {
+    error.textContent = `Enter an absolute URI without spaces: ${invalid}`;
+    field.setFocus();
+    return;
+  }
+  const current = c.redirect_uris ?? [];
+  const added = uris.filter((u) => !current.includes(u));
+  const removed = current.filter((u) => !uris.includes(u));
+  if (!added.length && !removed.length) {
+    state.editing = null;
+    return renderDetail();
+  }
+  state.pendingRedirects = { itemId: c.itemId, redirect_uris: uris };
+  // Editing the OAuth app this console signs in with: dropping its callback locks you out
+  const lockout = c.client_id === config.clientId && !uris.includes(config.redirectUri);
+  $("#redirect-confirm-save").kind = lockout ? "danger" : "brand";
+  $("#redirect-confirm-body").innerHTML = `
+    <ul class="diff">
+      ${added.map((u) => `<li class="add">+ ${esc(u)}</li>`).join("")}
+      ${removed.map((u) => `<li class="remove">− ${esc(u)}</li>`).join("")}
+    </ul>
+    ${lockout ? `<calcite-notice open kind="danger" icon="exclamation-mark-triangle">
+      <div slot="title">You will lose access to Credential Console</div>
+      <div slot="message">This is the OAuth app Credential Console signs in with, and <code>${esc(config.redirectUri)}</code> would no longer be registered. You won't be able to sign in here again until you add it back in the portal.</div>
+    </calcite-notice>` : ""}
+    <p>Future sign-ins must use a registered redirect URI.${removed.length ? " Apps using a removed URI will need their sign-in configuration updated." : ""}</p>
+    ${!uris.length ? `<p>No redirect URIs will remain registered.</p>` : ""}`;
+  $("#redirect-confirm").open = true;
+}
+
+$("#redirect-confirm-save").addEventListener("click", (e) => {
+  const { itemId, redirect_uris } = state.pendingRedirects;
+  run(e.currentTarget, async () => {
+    await api.updateRedirectUris(itemId, redirect_uris);
+    $("#redirect-confirm").open = false;
+    state.editing = null;
+  }, "Redirect URIs saved");
+});
 
 // Collects the edited section, then asks for confirmation with a diff before revoking anything
 function saveSection(key) {
@@ -1024,6 +1093,7 @@ document.addEventListener("click", (e) => {
     renderDetail();
   }
   if (target("[data-save-section]")) saveSection(target("[data-save-section]").dataset.saveSection);
+  if (target("[data-save-redirects]")) saveRedirectUris();
   if (target("[data-save-owner]")) saveOwner();
   if (target("[data-save-notes]")) saveNotes();
   if (target("[data-rename]")) {

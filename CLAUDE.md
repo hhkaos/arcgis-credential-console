@@ -4,7 +4,8 @@ Guidance for working on **Credential Console for ArcGIS Location Platform**: a n
 
 ## Run and check
 
-- `npm start` → <http://localhost:3000>. Port 3000 matters: the OAuth redirect URI is `http://localhost:3000/callback.html`.
+- `npm start` → <http://localhost:3000>. `redirectUri` is derived from the page URL, so any port or host works as long as its exact `…/callback.html` is registered in the OAuth app.
+- Keep `serve.json` (`cleanUrls: false`): by default `serve` redirects `/callback.html` to `/callback`, the OAuth `code`/`state` don't survive and sign-in fails with a state error. Any other static server must also keep the callback URL and its query intact.
 - `?mock` (e.g. <http://localhost:3000/?mock>) swaps `src/api.js` for `src/mock.js`. Use it for every UI change; it needs no account.
 - `npm run seed` writes demo data to the **real** account in `.env` (`ARCGIS_USERNAME` / `ARCGIS_PASSWORD`). Never print, log or commit `.env`.
 - There are no tests. Verify UI changes in a browser in mock mode and look at the result (screenshots), in light and dark mode when styles change. A headless Playwright script works well; the Playwright MCP browser can be locked by another session.

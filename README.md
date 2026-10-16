@@ -28,11 +28,25 @@ It was built as the sample app for the session **Working with ArcGIS REST JS** a
 
 There are **no plans to keep developing it**. If you would like to use it, adapt it or contribute, please [open an issue](https://github.com/hhkaos/arcgis-credential-console/issues) and let's talk.
 
+## Known limitations
+
+Scope choices for this sample, not bugs:
+
+- **Built around API keys.** The scenario is a data provider whose customers use API keys, so credentials for **user authentication** are mostly out of scope: OAuth apps are listed and audited, but the only thing you can edit is their redirect URIs. Creating OAuth apps and changing their other settings is not supported.
+- **Your own credentials only.** It lists the credentials owned by the signed-in user, not every credential in the organization.
+- **Tested on ArcGIS Location Platform only.** It may work with ArcGIS Online or ArcGIS Enterprise (11.4+), but that hasn't been tested.
+- **Small accounts.** Everything is loaded at once. Token expirations, projects and the items in each project are read from the first page of results (up to 100 each).
+- **No usage data.** Usage per credential lives in the Location Platform dashboard; the app links to it.
+- **Plain-text descriptions.** Notes are edited as plain text, so rich formatting added in the portal is lost when saving from here.
+- **Conventions, not rules.** Data tiers (`tier:*`) and tag families (`family:value`) are tag conventions the app relies on; the seed script sets them up.
+- **Desktop first.** Designed for large screens; narrow screens and dark mode of the detail view are not fully polished.
+
 ## Features
 
 - **Overview:** clickable KPIs (API keys, OAuth apps, tokens expiring soon, critical issues) and a search that mixes free text with tag filters.
 - **Audit:** rules for expired or expiring tokens, missing referrers, admin or global-access privileges, restricted data exposed without referrers, deleted items, credentials without project or owner.
 - **API key lifecycle:** per-slot Generate / Regenerate / Invalidate (zero-downtime rotation), partial API key, and in-place editing of items, privileges and referrers with a confirmation that shows what changes and which tokens stop working.
+- **OAuth apps:** the same detail layout, with in-place editing of redirect URIs and a confirmation showing additions and removals.
 - **Readable access:** exposed items grouped by data tier, and privileges with human-friendly names grouped as in the docs.
 - **Organization:** projects (ArcGIS groups) with logos, `family:value` tags with autocomplete, batch actions, and ownership (owner, contact, where it is deployed) and notes stored on the item itself.
 - **Live revocation demo:** a small "customer app" (`viewer.html`) that turns red seconds after its token is invalidated.
@@ -50,6 +64,8 @@ npm start            # serves the folder on http://localhost:3000
 ```
 
 Open <http://localhost:3000/?mock>. Mock mode uses `src/mock.js` and needs no account.
+
+`serve.json` disables clean-URL redirects so `callback.html` keeps the OAuth `code` and `state` query parameters. Other static servers must preserve these parameters too.
 
 ### Use it with your ArcGIS Location Platform account
 

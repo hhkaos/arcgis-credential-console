@@ -20,6 +20,7 @@ import {
   getOAuthApp,
   createApiKey,
   updateApiKey,
+  updateOAuthApp,
   invalidateApiKey,
   unregisterApp,
 } from "@esri/arcgis-rest-developer-credentials";
@@ -131,6 +132,10 @@ export async function deleteCredential(itemId) {
   await unregisterApp({ itemId, authentication });
   await removeItem({ id: itemId, authentication });
 }
+
+// Replace the registered redirect URIs used for OAuth sign-in.
+export const updateRedirectUris = (itemId, redirect_uris) =>
+  updateOAuthApp({ itemId, redirect_uris, authentication });
 
 // ---------- 5. Projects (groups) ----------
 

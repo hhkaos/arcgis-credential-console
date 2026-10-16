@@ -24,6 +24,7 @@ A web app to **audit, rotate and revoke developer credentials** (API keys and OA
 ## 2. Constraints
 
 - No build step: `index.html` + ES modules + `config.js`. Served by any static server (port 3000, because of the redirect URI).
+- `serve.json` disables clean-URL redirects: the OAuth callback must retain its `code` and `state` query parameters. When using another port, register its exact callback URI as well.
 - REST JS logic is isolated in `src/api.js`, in short (≤ ~20 lines), commented functions.
 - Calcite Components **5.1.2** and ArcGIS REST JS **4.11.0** from a CDN.
   - jsdelivr resolves `developer-credentials@4.11.0` with `request@4.10.3`; the import map remaps it to 4.11.0 so there is a single copy of `ArcGISIdentityManager`.
@@ -82,7 +83,7 @@ A web app to **audit, rotate and revoke developer credentials** (API keys and OA
 
 ### List
 - **KPIs**, compact and clickable (they filter): API keys, OAuth apps, tokens expiring in ≤ 30 days, credentials with critical issues.
-- **Hybrid search** (combobox): free text (name, summary, owner, tags, projects, referrers, redirect URIs) with highlighting, plus suggested tags grouped by family with counts. Several filters = AND.
+- **Hybrid search** (combobox): free text (name, Client ID, summary, owner, tags, projects, referrers, redirect URIs) with highlighting, plus suggested tags grouped by family with counts. Client ID matches can be partial and are case-insensitive, for both API keys and OAuth apps. Several filters = AND.
 - **Table:** credential (type icon, name, summary, 2 tags + `+N` colored by family), project (only in "All"), tokens (one chip per slot with days left), number of privileges, items per tier with counts, audit level. The whole row opens the detail.
 - **Batch actions** (multiple selection): revoke tokens, move to project, add tags, delete. Results report partial failures ("7 of 8 done. Failed: …").
 
@@ -92,6 +93,7 @@ A web app to **audit, rotate and revoke developer credentials** (API keys and OA
 - **Right column:** API keys, Ownership, Notes, Projects (checkbox → `shareItemWithGroup` / `unshareItemWithGroup`).
 - **API keys** (like the portal item page): one row per slot with status (Active / Expired / Not generated), "Show partial API key", expiration and Generate / Regenerate / Invalidate actions. Regenerate and Invalidate ask for confirmation; Generate in the free slot enables zero-downtime rotation.
 - **In-place access editing:** each card (items, privileges, referrers) is edited where it is, with the note "Saving issues a new token". Saving opens a confirmation with the diff and the tokens that will stop working; button "Revoke and generate token".
+- **OAuth redirect URIs:** edit in place, one absolute URI per line (including custom schemes); trim whitespace and remove duplicates. Save confirms additions and removals, noting that removed URIs cannot be used for future sign-ins. If the app being edited is the one Credential Console signs in with (`config.clientId`) and its current callback would be removed, the confirmation shows a lockout warning. An empty list is shown explicitly. Uses `updateOAuthApp` in the API layer, with matching mock behavior.
 - **Ownership:** Owner, Contact, Deployed in, Link. When empty, shows its projects' notes ("From project …").
 - **Notes:** free text; URLs become links.
 - **Visibility notices** on every context form: who can read it (private vs shared credential, group) and "don't store secrets; keep personal data to what you need".
@@ -133,7 +135,7 @@ A web app to **audit, rotate and revoke developer credentials** (API keys and OA
 | Items | `searchItems` + `SearchQueryBuilder` + `nextPage()`, `updateItem` (title, summary, notes, tags, `properties`) |
 | Credentials | `getApiKey`, `getOAuthApp`, and **`request()` to `portals/self/apiTokens`** (no REST JS function for it) |
 | Projects | `searchGroups`, `getGroupContent`, `createGroup`, `updateGroup` (with logo), `removeGroup`, `shareItemWithGroup`, `unshareItemWithGroup` |
-| Lifecycle | `createApiKey`, `updateApiKey` (`generateToken(key, slot)`, `reconfigureKey`), `invalidateApiKey`, `unregisterApp` + `removeItem` |
+| Lifecycle | `createApiKey`, `updateApiKey` (`generateToken(key, slot)`, `reconfigureKey`), `invalidateApiKey`, `updateOAuthApp` (`updateRedirectUris`; only `redirect_uris` is sent), `unregisterApp` + `removeItem` |
 
 ## 8. Files
 
@@ -179,11 +181,15 @@ To do: have the seed fill in summary, owner and project notes for some credentia
 
 ## 10. To do
 
+Scope limitations that are intentional are listed in the README ("Known limitations").
+
+
 - [ ] Test on a real account: generate / regenerate / invalidate per slot from the UI with the viewer; user menu (dashboard and Account settings URLs); Sign out.
 - [ ] Verify on a real account that `snippet`, `description` and `properties` don't invalidate tokens.
 - [ ] Check the computed partial key against the one arcgis.com shows.
 - [ ] Reassign project(s) from the Project cell in the table.
-- [ ] OAuth app detail: edit redirect URIs.
+- [x] OAuth app detail: edit redirect URIs.
+- [ ] Verify redirect URI updates on a real account (UI verified in mock mode).
 - [ ] Audit card with no findings → badge in the header.
 - [ ] `Cannot read properties of null (reading 'disconnect')` errors in the console (Calcite 5.1.2 internals when re-rendering with `innerHTML`; no visible effect).
 - [ ] Calcite 5.1.2: the combobox doesn't index items added after it renders (it is rebuilt every time) and `filterProps` empties the filter (not used).
